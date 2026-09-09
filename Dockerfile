@@ -99,6 +99,12 @@ RUN mkdir -p \
   storage \
   bootstrap/cache
 
+COPY docker/entrypoint.sh /usr/local/bin/cachet-entrypoint
+
+RUN chmod +x /usr/local/bin/cachet-entrypoint
+
 EXPOSE 80
+
+ENTRYPOINT ["cachet-entrypoint"]
 
 CMD ["apache2-foreground"]
