@@ -3,35 +3,49 @@
 ARG PHP_VERSION=8.3
 
 # ---------------------------------------------------------
-# Frontend builder
+# Base PHP build image
 # ---------------------------------------------------------
-FROM node:22-bookworm AS frontend
-
-ARG CACHET_REF=3.x
-
-WORKDIR /build
+FROM php:${PHP_VERSION}-bookworm AS php-base
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends git ca-certificates \
+  && apt-get install -y --no-install-recommends \
+  git \
+  curl \
+  unzip \
+  libpq-dev \
+  libicu-dev \
+  libzip-dev \
+  libpng-dev \
+  libjpeg62-turbo-dev \
+  libfreetype6-dev \
+  libonig-dev \
+  && docker-php-ext-configure gd \
+  --with-freetype \
+  --with-jpeg \
+  && docker-php-ext-install -j"$(nproc)" \
+  bcmath \
+  exif \
+  gd \
+  intl \
+  mbstring \
+  opcache \
+  pcntl \
+  pdo \
+  pdo_pgsql \
+  zip \
   && rm -rf /var/lib/apt/lists/*
 
-RUN git clone --depth 1 --branch "${CACHET_REF}" \
-  https://github.com/cachethq/cachet.git .
-
-RUN npm ci
-RUN npm run build
-
 
 # ---------------------------------------------------------
-# PHP dependencies builder
+# Composer dependencies
 # ---------------------------------------------------------
-FROM composer:2 AS composer
+FROM php-base AS composer
 
 ARG CACHET_REF=3.x
 
-WORKDIR /build
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-RUN apk add --no-cache git
+WORKDIR /build
 
 RUN git clone --depth 1 --branch "${CACHET_REF}" \
   https://github.com/cachethq/cachet.git .
@@ -45,20 +59,41 @@ RUN composer install \
 
 
 # ---------------------------------------------------------
+# Frontend builder
+# ---------------------------------------------------------
+FROM node:22-bookworm AS frontend
+
+ARG CACHET_REF=3.x
+
+WORKDIR /build
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+  git \
+  ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN git clone --depth 1 --branch "${CACHET_REF}" \
+  https://github.com/cachethq/cachet.git .
+
+RUN npm ci
+
+RUN npm run build
+
+
+# ---------------------------------------------------------
 # Runtime
 # ---------------------------------------------------------
 FROM php:${PHP_VERSION}-apache
 
-ARG CACHET_REF=3.x
+WORKDIR /var/www/html
 
 LABEL org.opencontainers.image.title="Cachet"
 LABEL org.opencontainers.image.description="Cachet 3.x status page"
 LABEL org.opencontainers.image.source="https://github.com/cachethq/cachet"
 LABEL org.opencontainers.image.licenses="BSD-3-Clause"
 
-WORKDIR /var/www/html
-
-# System dependencies + PHP extensions
+# Runtime dependencies + PHP extensions
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
   git \
@@ -88,7 +123,7 @@ RUN apt-get update \
   && a2enmod rewrite headers \
   && rm -rf /var/lib/apt/lists/*
 
-# Apache must serve Laravel's public directory
+# Laravel public directory
 ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
 
 RUN sed -ri \
@@ -97,17 +132,19 @@ RUN sed -ri \
   /etc/apache2/apache2.conf \
   /etc/apache2/conf-available/*.conf
 
-# Copy Cachet source
+ARG CACHET_REF=3.x
+
+# Cachet source
 RUN git clone --depth 1 --branch "${CACHET_REF}" \
   https://github.com/cachethq/cachet.git .
 
-# Copy PHP dependencies
+# Composer dependencies
 COPY --from=composer /build/vendor ./vendor
 
-# Copy compiled frontend
+# Compiled frontend assets
 COPY --from=frontend /build/public/build ./public/build
 
-# Ensure Laravel storage/cache directories exist
+# Laravel directories
 RUN mkdir -p \
   storage/framework/cache \
   storage/framework/sessions \
@@ -121,7 +158,7 @@ RUN mkdir -p \
   storage \
   bootstrap/cache
 
-# PHP production settings
+# PHP production configuration
 RUN { \
   echo 'opcache.enable=1'; \
   echo 'opcache.validate_timestamps=0'; \
@@ -141,3 +178,4 @@ EXPOSE 80
 ENTRYPOINT ["cachet-entrypoint"]
 
 CMD ["apache2-foreground"]
+
