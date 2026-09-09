@@ -25,10 +25,10 @@ This repository provides a containerized Cachet 3.x build that can be published 
 The image is published to GitHub Container Registry:
 
 ```text
-ghcr.io/YOUR_USERNAME/cachet-docker:3.x
+ghcr.io/mdahamshi/cachet-docker:3.x
 ```
 
-Replace `YOUR_USERNAME` with your GitHub username.
+Replace `mdahamshi` with your GitHub username.
 
 ## Running with Docker
 
@@ -52,7 +52,7 @@ docker run -d \
   -e DB_DATABASE=cachet \
   -e DB_USERNAME=cachet \
   -e DB_PASSWORD=YOUR_PASSWORD \
-  ghcr.io/YOUR_USERNAME/cachet-docker:3.x
+  ghcr.io/mdahamshi/cachet-docker:3.x
 ```
 
 For production deployments, use Docker Compose or Coolify rather than manually passing secrets on the command line.
@@ -130,7 +130,7 @@ Coolify can pull the image directly from GHCR:
 ```yaml
 services:
   cachet:
-    image: ghcr.io/YOUR_USERNAME/cachet-docker:3.x
+    image: ghcr.io/mdahamshi/cachet-docker:3.x
 ```
 
 The recommended Coolify setup uses Coolify's generated environment variables for:
